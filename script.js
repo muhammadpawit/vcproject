@@ -16,6 +16,7 @@ const configuration = {
 let room;
 let pc;
 let localStream;
+let currentFacingMode = 'user';
 
 const localVideo = document.getElementById('localVideo');
 const remoteVideo = document.getElementById('remoteVideo');
@@ -42,7 +43,6 @@ drone.on('open', error => {
     }
   });
   // We're connected to the room and received an array of 'members'
-  // connected to the room (including us). Signaling server is ready.
   room.on('members', members => {
     console.log('MEMBERS', members);
     // If we are the second user to connect to the room we will be creating the offer
@@ -62,15 +62,12 @@ function sendMessage(message) {
 function startWebRTC(isOfferer) {
   pc = new RTCPeerConnection(configuration);
 
-  // 'onicecandidate' notifies us whenever an ICE agent needs to deliver a
-  // message to the other peer through the signaling server
   pc.onicecandidate = event => {
     if (event.candidate) {
       sendMessage({'candidate': event.candidate});
     }
   };
 
-  // If user is offerer let the 'negotiationneeded' event create the offer
   if (isOfferer) {
     pc.onnegotiationneeded = () => {
       pc.createOffer().then(localDescCreated).catch(onError);
@@ -82,7 +79,6 @@ function startWebRTC(isOfferer) {
     remoteVideo.srcObject = event.stream;
   };
 
-  // Checking if mediaDevices is available (fixes local HTTP errors)
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     if (errorOverlay) errorOverlay.style.display = 'flex';
     return;
@@ -90,33 +86,36 @@ function startWebRTC(isOfferer) {
 
   navigator.mediaDevices.getUserMedia({
     audio: true,
-    video: true,
+    video: { facingMode: currentFacingMode }
   }).then(stream => {
     localStream = stream;
-    // Display your local video in #localVideo element
     localVideo.srcObject = stream;
-    
-    // Add your stream to be sent to the connecting peer
     pc.addStream(stream);
   }).catch(onError);
 
   // Listen to signaling data from Scaledrone
   room.on('data', (message, client) => {
-    // Message was sent by us
     if (client.id === drone.clientId) {
+      return;
+    }
+    
+    // Handle camera toggle signaling to show/hide remote avatar
+    if (message.type === 'cam_toggle') {
+      if (message.enabled) {
+        remoteVideo.classList.remove('video-hidden');
+      } else {
+        remoteVideo.classList.add('video-hidden');
+      }
       return;
     }
 
     if (message.sdp) {
-      // This is called after receiving an offer or answer from another peer
       pc.setRemoteDescription(new RTCSessionDescription(message.sdp), () => {
-        // When receiving an offer lets answer it
         if (pc.remoteDescription.type === 'offer') {
           pc.createAnswer().then(localDescCreated).catch(onError);
         }
       }, onError);
     } else if (message.candidate) {
-      // Add the new ICE candidate to our connections remote description
       pc.addIceCandidate(
         new RTCIceCandidate(message.candidate), onSuccess, onError
       );
@@ -139,7 +138,6 @@ document.getElementById('copyUrlBtn').addEventListener('click', () => {
     btn.innerText = 'Copied!';
     setTimeout(() => btn.innerText = 'Copy Link', 2000);
   }).catch(() => {
-    // Fallback if clipboard API fails
     const dummy = document.createElement('input');
     document.body.appendChild(dummy);
     dummy.value = window.location.href;
@@ -177,8 +175,93 @@ document.getElementById('toggleCam').addEventListener('click', function() {
       this.classList.toggle('disabled', !videoTrack.enabled);
       this.querySelector('svg').innerHTML = videoTrack.enabled ? camSvgOn : camSvgOff;
       
-      // Beri feedback visual instan di local video
-      localVideo.style.opacity = videoTrack.enabled ? '1' : '0.1';
+      if (videoTrack.enabled) {
+        localVideo.classList.remove('video-hidden');
+      } else {
+        localVideo.classList.add('video-hidden');
+      }
+      
+      // Notify remote peer to show/hide their guest avatar
+      sendMessage({ type: 'cam_toggle', enabled: videoTrack.enabled });
     }
   }
 });
+
+// Switch Front/Back Camera
+document.getElementById('switchCam').addEventListener('click', async function() {
+  if (!localStream) return;
+  
+  // Toggle facing mode
+  currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+  
+  try {
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { exact: currentFacingMode } }
+    });
+    
+    replaceCameraTrack(newStream);
+  } catch (e) {
+    // If exact constraint fails (e.g., desktop/laptop without back cam), fallback to general
+    try {
+      const fallbackStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: currentFacingMode }
+      });
+      replaceCameraTrack(fallbackStream);
+    } catch (err) {
+      console.error("Failed to switch camera", err);
+      // Revert facing mode state if it failed
+      currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+    }
+  }
+});
+
+function replaceCameraTrack(newStream) {
+  const newVideoTrack = newStream.getVideoTracks()[0];
+  const oldVideoTrack = localStream.getVideoTracks()[0];
+  
+  if (pc) {
+    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+    if (sender) {
+      sender.replaceTrack(newVideoTrack);
+    }
+  }
+  
+  localStream.removeTrack(oldVideoTrack);
+  localStream.addTrack(newVideoTrack);
+  oldVideoTrack.stop();
+  
+  // Keep UI sync if camera was disabled
+  const camBtn = document.getElementById('toggleCam');
+  if (camBtn.classList.contains('disabled')) {
+    newVideoTrack.enabled = false;
+  }
+}
+
+// Picture-in-Picture Swapping Logic
+document.getElementById('localWrapper').addEventListener('click', swapVideos);
+document.getElementById('remoteWrapper').addEventListener('click', function() {
+  if (this.classList.contains('secondary-wrapper')) {
+    swapVideos();
+  }
+});
+
+function swapVideos() {
+  const lw = document.getElementById('localWrapper');
+  const rw = document.getElementById('remoteWrapper');
+  
+  if (lw.classList.contains('secondary-wrapper')) {
+    // Make Local Primary, Remote Secondary
+    lw.classList.remove('secondary-wrapper');
+    lw.classList.add('primary-wrapper');
+    
+    rw.classList.remove('primary-wrapper');
+    rw.classList.add('secondary-wrapper');
+  } else {
+    // Make Remote Primary, Local Secondary
+    lw.classList.remove('primary-wrapper');
+    lw.classList.add('secondary-wrapper');
+    
+    rw.classList.remove('secondary-wrapper');
+    rw.classList.add('primary-wrapper');
+  }
+}

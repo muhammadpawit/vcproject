@@ -31,7 +31,7 @@
       padding: 20px;
       display: flex;
       justify-content: center;
-      z-index: 10;
+      z-index: 20;
       pointer-events: none;
       box-sizing: border-box;
     }
@@ -83,32 +83,74 @@
       display: flex;
       justify-content: center;
       align-items: center;
+      overflow: hidden;
     }
 
-    #remoteVideo {
-      width: 100%;
-      height: 100%;
+    .primary-wrapper {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 1;
+      transition: all 0.5s ease;
+    }
+
+    .secondary-wrapper {
+      position: absolute;
+      bottom: 110px; right: 20px;
+      width: 120px; height: 160px;
+      z-index: 5;
+      cursor: pointer;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      border: 2px solid var(--glass-border);
+      transition: all 0.5s ease;
+    }
+
+    @media (min-width: 768px) {
+      .secondary-wrapper {
+        width: 200px; height: 150px;
+        bottom: 30px; right: 30px;
+      }
+    }
+
+    .secondary-wrapper:hover {
+      transform: scale(1.05);
+    }
+
+    .primary-wrapper video, .secondary-wrapper video {
+      width: 100%; height: 100%;
       object-fit: cover;
+      position: absolute;
+      top: 0; left: 0;
+      z-index: 2;
+      transition: opacity 0.3s ease;
       background: #000;
     }
-    
+
     #localVideo {
-      position: absolute;
-      bottom: 30px;
-      right: 30px;
-      width: 200px;
-      height: 150px;
-      object-fit: cover;
-      border-radius: 12px;
-      border: 2px solid var(--glass-border);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-      background: #222;
-      z-index: 5;
-      transition: transform 0.3s ease;
+      transform: scaleX(-1);
     }
-    
-    #localVideo:hover {
-      transform: scale(1.05);
+
+    .avatar {
+      width: 100%; height: 100%;
+      position: absolute;
+      top: 0; left: 0;
+      z-index: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #1e293b;
+      color: #cbd5e1;
+      font-size: 2rem;
+      font-weight: bold;
+    }
+
+    .primary-wrapper .avatar {
+      font-size: 5rem;
+    }
+
+    .video-hidden {
+      opacity: 0 !important;
     }
 
     /* Error Overlay for Local Testing */
@@ -142,11 +184,11 @@
       left: 50%;
       transform: translateX(-50%);
       display: flex;
-      gap: 20px;
+      gap: 15px;
       background: var(--glass-bg);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
-      padding: 15px 30px;
+      padding: 15px 25px;
       border-radius: 50px;
       border: 1px solid var(--glass-border);
       z-index: 10;
@@ -190,13 +232,22 @@
     </div>
   </div>
 
-  <div class="video-container">
-    <video id="remoteVideo" autoplay playsinline></video>
-    <video id="localVideo" autoplay muted playsinline></video>
+  <div class="video-container" id="videoContainer">
+    <!-- Remote Video Wrapper -->
+    <div id="remoteWrapper" class="primary-wrapper">
+      <div class="avatar">GUEST</div>
+      <video id="remoteVideo" autoplay playsinline></video>
+    </div>
+    
+    <!-- Local Video Wrapper -->
+    <div id="localWrapper" class="secondary-wrapper">
+      <div class="avatar">ME</div>
+      <video id="localVideo" autoplay muted playsinline></video>
+    </div>
     
     <div id="errorOverlay">
       <h2>Camera & Microphone Access Denied</h2>
-      <p id="errorText">To use the camera and microphone locally, you must access this site via <strong>http://localhost</strong> or use <strong>HTTPS</strong>. Browser security policies block access when using <code>file://</code> or local IP addresses over HTTP.</p>
+      <p id="errorText">To use the camera and microphone locally, you must access this site via <strong>http://localhost</strong> or use <strong>HTTPS</strong>.</p>
     </div>
     
     <div class="controls">
@@ -210,9 +261,14 @@
           <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
         </svg>
       </button>
+      <button class="control-btn" id="switchCam" title="Switch Camera (Front/Back)">
+        <svg class="icon" viewBox="0 0 24 24">
+          <path d="M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 11.5V13H9v2.5L5.5 12 9 8.5V11h6V8.5l3.5 3.5-3.5 3.5z"/>
+        </svg>
+      </button>
     </div>
   </div>
 
-  <script src="script.js?v=2"></script>
+  <script src="script.js?v=3"></script>
 </body>
 </html>
