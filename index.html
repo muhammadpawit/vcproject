@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Video Call</title>
+  <script type='text/javascript' src='https://cdn.scaledrone.com/scaledrone.min.js'></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --glass-bg: rgba(255, 255, 255, 0.1);
+      --glass-border: rgba(255, 255, 255, 0.2);
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(135deg, #0f172a, #1e1b4b);
+      font-family: 'Inter', sans-serif;
+      color: white;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .header {
+      position: absolute;
+      top: 0;
+      width: 100%;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      z-index: 10;
+      pointer-events: none;
+      box-sizing: border-box;
+    }
+    
+    .copy-container {
+      background: var(--glass-bg);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--glass-border);
+      padding: 12px 24px;
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      pointer-events: auto;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+    }
+
+    .copy-container:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+    
+    .copy-text {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    
+    .copy-btn {
+      background: #3b82f6;
+      border: none;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 12px;
+      transition: background 0.3s ease;
+    }
+    
+    .copy-btn:hover {
+      background: #2563eb;
+    }
+    
+    .video-container {
+      flex: 1;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #remoteVideo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #000;
+    }
+    
+    #localVideo {
+      position: absolute;
+      bottom: 30px;
+      right: 30px;
+      width: 200px;
+      height: 150px;
+      object-fit: cover;
+      border-radius: 12px;
+      border: 2px solid var(--glass-border);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      background: #222;
+      z-index: 5;
+      transition: transform 0.3s ease;
+    }
+    
+    #localVideo:hover {
+      transform: scale(1.05);
+    }
+
+    /* Error Overlay for Local Testing */
+    #errorOverlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.9);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      text-align: center;
+      padding: 20px;
+    }
+
+    #errorOverlay h2 {
+      color: #ef4444;
+      margin-bottom: 10px;
+    }
+
+    #errorOverlay p {
+      color: #cbd5e1;
+      max-width: 500px;
+      line-height: 1.6;
+    }
+
+    .controls {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 20px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      padding: 15px 30px;
+      border-radius: 50px;
+      border: 1px solid var(--glass-border);
+      z-index: 10;
+    }
+
+    .control-btn {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: all 0.3s ease;
+    }
+
+    .control-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+    
+    .control-btn.disabled {
+      background: #ef4444;
+    }
+
+    .icon {
+      width: 24px;
+      height: 24px;
+      fill: currentColor;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="copy-container">
+      <span class="copy-text">Share this link to start a call</span>
+      <button class="copy-btn" id="copyUrlBtn">Copy Link</button>
+    </div>
+  </div>
+
+  <div class="video-container">
+    <video id="remoteVideo" autoplay playsinline></video>
+    <video id="localVideo" autoplay muted playsinline></video>
+    
+    <div id="errorOverlay">
+      <h2>Camera & Microphone Access Denied</h2>
+      <p id="errorText">To use the camera and microphone locally, you must access this site via <strong>http://localhost</strong> or use <strong>HTTPS</strong>. Browser security policies block access when using <code>file://</code> or local IP addresses over HTTP.</p>
+    </div>
+    
+    <div class="controls">
+      <button class="control-btn" id="toggleMic" title="Toggle Microphone">
+        <svg class="icon" viewBox="0 0 24 24">
+          <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+        </svg>
+      </button>
+      <button class="control-btn" id="toggleCam" title="Toggle Camera">
+        <svg class="icon" viewBox="0 0 24 24">
+          <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
